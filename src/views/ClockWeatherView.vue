@@ -22,9 +22,6 @@ function openSettings() {
   showDrawer.value = true
 }
 
-function toggleSeconds() {
-  clockConfig.value.showSeconds = !clockConfig.value.showSeconds
-}
 
 const weekdayLabel = computed(() => {
   const formatter = new Intl.DateTimeFormat(locale.value, { weekday: 'long' })
@@ -44,7 +41,7 @@ const yearMonthLabel = computed(() => {
 const showLunar = computed(() => locale.value !== 'en-US')
 
 const baseDelay = computed(() => {
-  return clockConfig.value.showSeconds ? 0 : -2
+  return 0
 })
 
 /** 闲置时隐藏设置按钮 */
@@ -75,7 +72,7 @@ watch(idle, (newIdle) => {
         <div class="date-day-big">
           {{ now.getDate() }}
         </div>
-        <div class="flex flex-col mr-[8vh]">
+        <div class="flex flex-col mr-[5.6vh]">
           <span class="weekday-label">
             {{ weekdayLabel }}
           </span>
@@ -94,21 +91,19 @@ watch(idle, (newIdle) => {
 
     <!-- 时钟显示 -->
     <div
-      class="clock-display tabular-nums cursor-pointer transition-all duration-500"
-      :class="{ 'with-seconds': clockConfig.showSeconds }"
+      class="clock-display tabular-nums transition-all duration-500"
       :style="{ color: clockConfig.color, fontWeight: clockConfig.fontWeight, opacity: clockConfig.opacity }"
-      @click.stop.prevent="toggleSeconds"
     >
       <Digit
         v-if="clockConfig.is24Hour || h1 !== 0"
-        :value="h1" :show-seconds="clockConfig.showSeconds" :enable-tilt="clockConfig.enableTilt"
-        :trigger="clockConfig.showSeconds ? now.getTime() : Math.floor(now.getTime() / 60000)"
+        :value="h1" :enable-tilt="clockConfig.enableTilt"
+        :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(5 - baseDelay) * 100"
         class="opacity-95"
       />
       <Digit
-        :value="h2" :show-seconds="clockConfig.showSeconds" :enable-tilt="clockConfig.enableTilt"
-        :trigger="clockConfig.showSeconds ? now.getTime() : Math.floor(now.getTime() / 60000)"
+        :value="h2" :enable-tilt="clockConfig.enableTilt"
+        :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(4 - baseDelay) * 100"
         class="opacity-95"
         :class="[{
@@ -116,43 +111,22 @@ watch(idle, (newIdle) => {
         }]"
       />
 
-      <div class="clock-separator">
+      <div class="clock-separator animate-blink">
         :
       </div>
 
       <Digit
-        :value="m1" :show-seconds="clockConfig.showSeconds" :enable-tilt="clockConfig.enableTilt"
-        :trigger="clockConfig.showSeconds ? now.getTime() : Math.floor(now.getTime() / 60000)"
+        :value="m1" :enable-tilt="clockConfig.enableTilt"
+        :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(3 - baseDelay) * 100"
         class="opacity-95"
       />
       <Digit
-        :value="m2" :show-seconds="clockConfig.showSeconds" :enable-tilt="clockConfig.enableTilt"
-        :trigger="clockConfig.showSeconds ? now.getTime() : Math.floor(now.getTime() / 60000)"
+        :value="m2" :enable-tilt="clockConfig.enableTilt"
+        :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(2 - baseDelay) * 100"
         class="opacity-95 brightness"
       />
-
-      <template v-if="clockConfig.showSeconds">
-        <div
-          class="clock-separator second-separator"
-          :style="{ opacity: clockConfig.opacity * 0.7 }"
-        >
-          :
-        </div>
-        <Digit
-          class="second-digit opacity-60" :value="s1" :show-seconds="clockConfig.showSeconds"
-          :trigger="now.getTime()"
-          :delay="100"
-          :enable-tilt="clockConfig.enableTilt"
-        />
-        <Digit
-          class="second-digit brightness opacity-60" :value="s2" :show-seconds="clockConfig.showSeconds"
-          :trigger="now.getTime()"
-          :delay="0"
-          :enable-tilt="clockConfig.enableTilt"
-        />
-      </template>
     </div>
 
     <!-- 天气展示 -->
@@ -171,24 +145,24 @@ watch(idle, (newIdle) => {
 }
 
 .date-day-big {
-  font-size: 16vh;
+  font-size: 11vh;
   line-height: 1.1;
   font-weight: 800;
   background: linear-gradient(to bottom, #ffffff, rgba(255, 255, 255, 0.7));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  margin-right: 2vh;
+  margin-right: 1vh;
 }
 
 .weekday-label {
-  font-size: 6vh;
+  font-size: 4vh;
   letter-spacing: 0.2em;
   line-height: 1.1;
   opacity: 0.9;
 }
 
 .year-label {
-  font-size: 4.6vh;
+  font-size: 3vh;
   letter-spacing: 0.2em;
   line-height: 1.1;
   opacity: 0.8;
@@ -196,18 +170,18 @@ watch(idle, (newIdle) => {
 }
 
 .lunar-date-label {
-  font-size: 6vh;
+  font-size: 4vh;
   letter-spacing: 0.2em;
   line-height: 1.1;
   opacity: 0.9;
 }
 
 .lunar-year-label {
-  font-size: 4.6vh;
+  font-size: 3vh;
   letter-spacing: 0.2em;
   line-height: 1.1;
   opacity: 0.8;
-  margin-top: 0.5vh;
+  margin-top: 0.3vh;
 }
 
 .clock-display {
@@ -217,23 +191,23 @@ watch(idle, (newIdle) => {
   align-items: center;
   justify-content: center;
   font-family: 'SFCompactRounded', 'Huninn', sans-serif;
-  font-size: 54vh;
+  font-size: 55vh;
   margin-top: 6vh;
   margin-bottom: 6vh;
 }
 
 .clock-display.with-seconds {
-  font-size: 38vh;
+  font-size: 30vh;
 }
 
 .clock-only-mode .clock-display {
-  font-size: 44vw;
+  font-size: 45vw;
   margin-top: 0;
   margin-bottom: 0;
 }
 
 .clock-only-mode .clock-display.with-seconds {
-  font-size: 30vw;
+  font-size: 25vw;
   margin-top: 0;
   margin-bottom: 0;
 }
@@ -254,5 +228,16 @@ watch(idle, (newIdle) => {
 
 .brightness {
   filter: brightness(1.25);
+}
+</style>
+
+<style>
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-blink {
+  animation: blink 2s step-end infinite;
 }
 </style>

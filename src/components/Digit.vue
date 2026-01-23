@@ -63,11 +63,11 @@ onMounted(() => {
 
 <style scoped>
 .digit-container {
-  --digit-item-height: 0.8em;
+  --digit-item-height: 1.0em;
   position: relative;
   display: inline-block;
   height: var(--digit-item-height);
-  width: 0.8em;
+  width: 1.05em;
   overflow: hidden;
   margin: 0 -0.18em;
   vertical-align: middle;
