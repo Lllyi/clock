@@ -2,7 +2,7 @@
 import { useIdle } from '@vueuse/core'
 import { Settings } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Digit from '../components/Digit.vue'
 import Weather from '../components/Weather.vue'
@@ -43,25 +43,18 @@ const baseDelay = computed(() => {
   return 0
 })
 
-/** 闲置时隐藏设置按钮 */
 const showSettingsButton = ref(true)
 const { idle } = useIdle(5 * 1000)
 watch(idle, (newIdle) => {
   showSettingsButton.value = !newIdle
 })
 
-/** * --- 新增逻辑：随机颜色功能 --- 
- * 设定：当 clockConfig.color 为 'random' 时触发
- */
+/** 随机颜色功能 */
 const isRainbowMode = computed(() => clockConfig.value.color === 'random')
-
-// 存储 H1, H2, 冒号, M1, M2 的颜色
 const digitColors = ref<string[]>(['', '', '', '', ''])
 
-// 生成鲜艳的随机颜色 (HSL)
 function generateBrightColor() {
   const hue = Math.floor(Math.random() * 360)
-  // 饱和度 70%-90%，亮度 60%-70%，确保在深色背景下清晰可见
   return `hsl(${hue}, 80%, 65%)`
 }
 
@@ -75,20 +68,82 @@ function updateColors() {
   ]
 }
 
-// 计算当前的 "10分钟区块" (例如 10:00-10:09 是一个区块)
-const tenMinuteBlock = computed(() => Math.floor(now.value.getTime() / (5 * 1000)))
+const tenMinuteBlock = computed(() => Math.floor(now.value.getTime() / (60 * 1000)))
 
-// 当处于随机模式，且进入新的10分钟区块时，更新颜色
 watch([tenMinuteBlock, isRainbowMode], ([block, mode]) => {
   if (mode) {
     updateColors()
   }
 }, { immediate: true })
 
-/** 获取指定位置的颜色，如果不是随机模式则返回 undefined (使用默认配置颜色) */
 function getColor(index: number) {
   return isRainbowMode.value ? digitColors.value[index] : undefined
 }
+
+// --- 红点环绕核心逻辑 (12点方向修正版) ---
+const dotStyle = ref({ top: '0px', left: '50%' })
+let animationFrameId: number
+
+const updateDotPosition = () => {
+  const date = new Date()
+  const s = date.getSeconds()
+  const ms = date.getMilliseconds()
+  // 当前秒数
+  const currentSec = s + ms / 1000
+  
+  // 偏移量：直径14px，半径7px -> offset -7px
+  const offset = '-7px' 
+
+  let style = {}
+  
+  // 逻辑修正：以12点(Top Center)为起点
+  // 矩形周长逻辑分为5段：
+  
+  if (currentSec < 7.5) {
+    // 阶段1: 12点 -> 1点半 (Top Edge: Center -> Right)
+    // 范围: Left 50% -> 100%
+    const progress = (currentSec / 7.5) * 50 + 50
+    style = { top: offset, left: `${progress}%` }
+  } 
+  else if (currentSec < 22.5) {
+    // 阶段2: 1点半 -> 4点半 (Right Edge: Top -> Bottom)
+    // 范围: Top 0% -> 100%
+    // 经过3点钟方向(15s)时，正好在 Right Edge Center
+    const progress = ((currentSec - 7.5) / 15) * 100
+    style = { top: `${progress}%`, left: `calc(100% + ${offset})` }
+  } 
+  else if (currentSec < 37.5) {
+    // 阶段3: 4点半 -> 7点半 (Bottom Edge: Right -> Left)
+    // 范围: Left 100% -> 0%
+    // 经过6点钟方向(30s)时，正好在 Bottom Edge Center
+    const progress = 100 - ((currentSec - 22.5) / 15) * 100
+    style = { top: `calc(100% + ${offset})`, left: `${progress}%` }
+  } 
+  else if (currentSec < 52.5) {
+    // 阶段4: 7点半 -> 10点半 (Left Edge: Bottom -> Top)
+    // 范围: Top 100% -> 0%
+    // 经过9点钟方向(45s)时，正好在 Left Edge Center
+    const progress = 100 - ((currentSec - 37.5) / 15) * 100
+    style = { top: `${progress}%`, left: offset }
+  } 
+  else {
+    // 阶段5: 10点半 -> 12点 (Top Edge: Left -> Center)
+    // 范围: Left 0% -> 50%
+    const progress = ((currentSec - 52.5) / 7.5) * 50
+    style = { top: offset, left: `${progress}%` }
+  }
+
+  dotStyle.value = style as any
+  animationFrameId = requestAnimationFrame(updateDotPosition)
+}
+
+onMounted(() => {
+  updateDotPosition()
+})
+
+onUnmounted(() => {
+  cancelAnimationFrame(animationFrameId)
+})
 
 </script>
 
@@ -128,9 +183,14 @@ function getColor(index: number) {
     </div>
 
     <div
-      class="clock-display tabular-nums transition-all duration-500"
+      class="clock-display tabular-nums transition-all duration-500 relative"
       :style="{ color: clockConfig.color, fontWeight: clockConfig.fontWeight, opacity: clockConfig.opacity }"
     >
+      
+      <div class="seconds-dot-wrapper">
+        <div class="seconds-dot animate-pulse-dot" :style="dotStyle"></div>
+      </div>
+
       <Digit
         v-if="clockConfig.is24Hour || h1 !== 0"
         :value="h1" :enable-tilt="clockConfig.enableTilt"
@@ -184,8 +244,6 @@ function getColor(index: number) {
 </template>
 
 <style scoped>
-/* 完全保留您上一次满意的样式配置 
-*/
 .glass-panel {
   max-width: 180vh;
   margin: 0 auto;
@@ -235,6 +293,7 @@ function getColor(index: number) {
   margin-top: 0.3vh;
 }
 
+/* 时钟容器配置 */
 .clock-display {
   display: flex;
   flex-direction: row !important;
@@ -245,6 +304,8 @@ function getColor(index: number) {
   font-size: 68vh;
   margin-top: 6vh;
   margin-bottom: 6vh;
+  position: relative; 
+  padding: 2vh; 
 }
 
 .clock-display.with-seconds {
@@ -264,7 +325,7 @@ function getColor(index: number) {
 }
 
 .clock-separator {
-  font-size: 95%;
+  font-size: 75%;
   opacity: 0.98;
   text-align: center;
   margin: 0 -0.08em;
@@ -281,6 +342,45 @@ function getColor(index: number) {
 
 .brightness {
   filter: brightness(1.25);
+}
+
+/* --- 环绕红点样式 --- */
+
+.seconds-dot-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 50; 
+}
+
+.seconds-dot {
+  position: absolute;
+  /* 直径 14px */
+  width: 14px;
+  height: 14px;
+  background-color: #FF1111; 
+  border-radius: 50%;
+  box-shadow: 0 0 12px #FF1111, 0 0 6px rgba(255, 255, 255, 0.8);
+  will-change: transform, top, left; 
+}
+
+/* 呼吸闪烁：scale 1.0 <-> 0.55 */
+@keyframes pulse-dot {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1; 
+  }
+  50% {
+    transform: scale(0.55); 
+    opacity: 1; 
+  }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 1s ease-in-out infinite;
 }
 </style>
 
