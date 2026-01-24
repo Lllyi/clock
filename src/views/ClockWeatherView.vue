@@ -325,7 +325,7 @@ onUnmounted(() => {
 }
 
 .clock-separator {
-  font-size: 75%;
+  font-size: 60%;
   opacity: 0.98;
   text-align: center;
   margin: 0 -0.08em;

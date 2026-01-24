@@ -12,11 +12,15 @@ import { isIpadIOS15OrLower } from './utils/device'
 import CalendarView from './views/CalendarView.vue'
 import ClockWeatherView from './views/ClockWeatherView.vue'
 import SmartHomeView from './views/SmartHomeView.vue'
+// [新增] 引入新页面组件
+import HomeView2 from './views/HomeView2.vue'
+import ThingLikeClock from './views/ThingLikeClock.vue'
 
 const configStore = useConfigStore()
 const { showDrawer, layoutConfig } = storeToRefs(configStore)
 
-const currentPage = ref(1)
+// [修改] 初始页改为 3，以保持默认显示 ClockWeatherView (0,1是新页面, 2是SmartHome, 3是Clock)
+const currentPage = ref(3)
 const calendarRef = ref<any>(null)
 
 const weatherStore = useWeatherStore()
@@ -53,8 +57,8 @@ let startX = 0
 function goToPage(page: number) {
   currentPage.value = page
 
-  // 切换到日历看板 (page 2) 时更新当前日期
-  if (page === 2 && calendarRef.value) {
+  // [修改] 切换到日历看板 (现在是第 4 页) 时更新当前日期
+  if (page === 4 && calendarRef.value) {
     calendarRef.value.refreshToday()
   }
 }
@@ -72,7 +76,8 @@ function handleTouchEnd(e: TouchEvent) {
       isSwiping.value = false
     }, 50)
 
-    if (diff > 0 && currentPage.value < 2)
+    // [修改] 最大页码限制改为 4 (总共5页：0,1,2,3,4)
+    if (diff > 0 && currentPage.value < 4)
       goToPage(currentPage.value + 1)
     else if (diff < 0 && currentPage.value > 0)
       goToPage(currentPage.value - 1)
@@ -91,7 +96,8 @@ function handleMouseUp(e: MouseEvent) {
       isSwiping.value = false
     }, 50)
 
-    if (diff > 0 && currentPage.value < 2)
+    // [修改] 最大页码限制改为 4
+    if (diff > 0 && currentPage.value < 4)
       goToPage(currentPage.value + 1)
     else if (diff < 0 && currentPage.value > 0)
       goToPage(currentPage.value - 1)
@@ -105,16 +111,6 @@ function handleGlobalClick(e: MouseEvent) {
   }
 }
 
-/** 30 秒不操作自动返回首页 */
-/**
-const { idle } = useIdle(30 * 1000)
-watch(idle, (newIdle) => {
-  if (newIdle) {
-    goToPage(1)
-  }
-})
-*/
-
 /** 键盘左右键切换页面 */
 const { left, right } = useMagicKeys()
 watchEffect(() => {
@@ -123,7 +119,8 @@ watchEffect(() => {
   if (left.value && currentPage.value > 0) {
     goToPage(currentPage.value - 1)
   }
-  if (right.value && currentPage.value < 2) {
+  // [修改] 最大页码限制改为 4
+  if (right.value && currentPage.value < 4) {
     goToPage(currentPage.value + 1)
   }
 })
@@ -144,7 +141,6 @@ watch(language, (nextLocale) => {
     @mouseup="handleMouseUp"
     @click.capture="handleGlobalClick"
   >
-    <!-- Background Decoration -->
     <template v-if="!isIpadIOS15OrLower()">
       <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-900/10 rounded-full blur-3xl pointer-events-none" />
       <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-900/10 rounded-full blur-3xl pointer-events-none" />
@@ -152,16 +148,26 @@ watch(language, (nextLocale) => {
 
     <div
       class="main-slider flex h-full transition-transform duration-700 cubic-bezier"
-      :style="{ transform: `translateX(-${currentPage * 100}vw)`, width: '300vw' }"
+      :style="{ transform: `translateX(-${currentPage * 100}vw)`, width: '500vw' }"
     >
       <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
-        <SmartHomeView v-if="currentPage === 0" />
+        <HomeView2 v-if="currentPage === 0" />
       </div>
+
+      <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
+        <ThingLikeClock v-if="currentPage === 1" />
+      </div>
+
+      <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
+        <SmartHomeView v-if="currentPage === 2" />
+      </div>
+
       <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
         <ClockWeatherView />
       </div>
+
       <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
-        <CalendarView v-if="currentPage === 2" ref="calendarRef" />
+        <CalendarView v-if="currentPage === 4" ref="calendarRef" />
       </div>
     </div>
 
