@@ -22,7 +22,6 @@ function openSettings() {
   showDrawer.value = true
 }
 
-
 const weekdayLabel = computed(() => {
   const formatter = new Intl.DateTimeFormat(locale.value, { weekday: 'long' })
   return formatter.format(now.value)
@@ -58,7 +57,6 @@ watch(idle, (newIdle) => {
     :class="{ 'clock-only-mode': layoutConfig.clockOnlyMode }"
     @click.stop="showSettingsButton = !showSettingsButton"
   >
-    <!-- 设置按钮 -->
     <button
       :class="{ 'opacity-0': !showSettingsButton }"
       class="absolute top-6 right-6 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 hover:rotate-90" @click="openSettings"
@@ -66,7 +64,6 @@ watch(idle, (newIdle) => {
       <Settings class="w-6 h-6 text-white" />
     </button>
 
-    <!-- 日期与农历 -->
     <div v-if="!layoutConfig.clockOnlyMode" class="flex flex-col sm:flex-row items-center md:items-start w-full justify-center">
       <div class="flex items-center">
         <div class="date-day-big">
@@ -89,7 +86,6 @@ watch(idle, (newIdle) => {
       </div>
     </div>
 
-    <!-- 时钟显示 -->
     <div
       class="clock-display tabular-nums transition-all duration-500"
       :style="{ color: clockConfig.color, fontWeight: clockConfig.fontWeight, opacity: clockConfig.opacity }"
@@ -99,12 +95,15 @@ watch(idle, (newIdle) => {
         :value="h1" :enable-tilt="clockConfig.enableTilt"
         :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(5 - baseDelay) * 100"
+        :narrow-gap="true" 
         class="opacity-95"
       />
+      
       <Digit
         :value="h2" :enable-tilt="clockConfig.enableTilt"
         :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(4 - baseDelay) * 100"
+        :narrow-gap="true"
         class="opacity-95"
         :class="[{
           brightness: clockConfig.is24Hour || (!clockConfig.is24Hour && h1 !== 0),
@@ -119,24 +118,26 @@ watch(idle, (newIdle) => {
         :value="m1" :enable-tilt="clockConfig.enableTilt"
         :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(3 - baseDelay) * 100"
+        :narrow-gap="true"
         class="opacity-95"
       />
+      
       <Digit
         :value="m2" :enable-tilt="clockConfig.enableTilt"
         :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(2 - baseDelay) * 100"
+        :narrow-gap="true"
         class="opacity-95 brightness"
       />
     </div>
 
-    <!-- 天气展示 -->
     <Weather v-if="!layoutConfig.clockOnlyMode" />
   </div>
 </template>
 
 <style scoped>
 .glass-panel {
-  max-width: 150vh;
+  max-width: 180vh;
   margin: 0 auto;
 }
 
@@ -191,7 +192,7 @@ watch(idle, (newIdle) => {
   align-items: center;
   justify-content: center;
   font-family: 'SFCompactRounded', 'Huninn', sans-serif;
-  font-size: 55vh;
+  font-size: 68vh;
   margin-top: 6vh;
   margin-bottom: 6vh;
 }
@@ -201,7 +202,7 @@ watch(idle, (newIdle) => {
 }
 
 .clock-only-mode .clock-display {
-  font-size: 45vw;
+  font-size: 50vw;
   margin-top: 0;
   margin-bottom: 0;
 }
@@ -224,6 +225,8 @@ watch(idle, (newIdle) => {
   top: -0.05em;
   z-index: 10;
   filter: brightness(1.8);
+  flex-shrink: 0;
+  min-width: 0.25em;
 }
 
 .brightness {
