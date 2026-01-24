@@ -106,12 +106,14 @@ function handleGlobalClick(e: MouseEvent) {
 }
 
 /** 30 秒不操作自动返回首页 */
+/**
 const { idle } = useIdle(30 * 1000)
 watch(idle, (newIdle) => {
   if (newIdle) {
     goToPage(1)
   }
 })
+*/
 
 /** 键盘左右键切换页面 */
 const { left, right } = useMagicKeys()

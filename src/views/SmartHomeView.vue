@@ -1,254 +1,343 @@
 <script setup lang="ts">
-import { AirVent, AlertTriangle, Blinds, Droplets, Fan, Lightbulb, Loader2, Power, Settings, Thermometer, Tv, Zap } from 'lucide-vue-next'
+import { useIdle } from '@vueuse/core'
+import { Settings } from 'lucide-vue-next'
 import { storeToRefs } from 'pinia'
-import { computed, onUnmounted, ref, watch } from 'vue'
-import { useI18n } from 'vue-i18n'
-import { haSocket } from '../api'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useTime } from '../hooks/useTime'
 import { useConfigStore } from '../stores/config'
-import { useHAStore } from '../stores/ha'
 
 const configStore = useConfigStore()
-const haStore = useHAStore()
-const { haConfig, haLayout, showDrawer, activeTab } = storeToRefs(configStore)
-const { entitiesStates } = storeToRefs(haStore)
-const { t } = useI18n()
+const { showDrawer, activeTab } = storeToRefs(configStore)
 
-const isConnecting = ref(false)
-
-const loadingStates = ref<Record<string, boolean>>({})
+// useTime 仅用于日期和星期的低频更新
+const { now } = useTime()
 
 function openSettings() {
   activeTab.value = 'smart'
   showDrawer.value = true
 }
 
-const connectErrorText = ref('')
-
-// 计算网格列数的CSS类
-const gridColsClass = computed(() => {
-  const cols = haLayout.value.columns
-  return {
-    3: 'grid-cols-3',
-    4: 'grid-cols-4',
-    5: 'grid-cols-5',
-  }[cols] || 'grid-cols-3'
+/** 闲置时隐藏设置按钮 */
+const showSettingsButton = ref(true)
+const { idle } = useIdle(5 * 1000)
+watch(idle, (newIdle) => {
+  showSettingsButton.value = !newIdle
 })
 
-// 计算要在顶部标题显示的温湿度信息（取第一个空调设备的数据）
-const headerClimateInfo = computed(() => {
-  const climateEntity = haConfig.value.entities.find(e => e.id.startsWith('climate.'))
-  if (!climateEntity)
-    return null
+// --- 模拟时钟核心逻辑 (高帧率模式) ---
+const secondDeg = ref(0)
+const minuteDeg = ref(0)
+const hourDeg = ref(0)
+let animationFrameId: number
 
-  const state = entitiesStates.value[climateEntity.id]
-  if (!state || !state.attributes)
-    return null
+const updateClockLoop = () => {
+  const date = new Date()
+  const s = date.getSeconds()
+  const ms = date.getMilliseconds()
+  const m = date.getMinutes()
+  const h = date.getHours() % 12
 
-  const { current_temperature, current_humidity } = state.attributes
-  if (current_temperature === undefined && current_humidity === undefined)
-    return null
+  // 1. 秒针：利用毫秒实现极致丝滑的“扫秒” (60FPS)
+  secondDeg.value = (s + ms / 1000) * 6
 
-  return {
-    temp: current_temperature,
-    humi: current_humidity,
-  }
+  // 2. 分针：随秒针微动 (让分针也平滑移动，而不是一分钟跳一次)
+  minuteDeg.value = m * 6 + s * 0.1 + (ms / 1000) * 0.1
+
+  // 3. 时针：随分针微动
+  hourDeg.value = h * 30 + m * 0.5 + (s / 120)
+
+  // 循环调用
+  animationFrameId = requestAnimationFrame(updateClockLoop)
+}
+
+onMounted(() => {
+  updateClockLoop()
 })
-
-function isEntityOn(entityId: string) {
-  const state = entitiesStates.value[entityId]?.state
-  if (entityId.startsWith('cover.')) {
-    return state === 'open'
-  }
-  if (entityId.startsWith('climate.')) {
-    return state && state !== 'off' && state !== 'unavailable'
-  }
-  return state === 'on'
-}
-
-function getIcon(domain: string, _isOn: boolean) {
-  if (domain === 'light')
-    return Lightbulb
-  if (domain === 'switch')
-    return Power
-  if (domain === 'fan')
-    return Fan
-  if (domain === 'media_player')
-    return Tv
-  if (domain === 'cover')
-    return Blinds
-  if (domain === 'climate')
-    return AirVent
-  return Zap
-}
-
-async function initConnection() {
-  if (!haConfig.value.url || !haConfig.value.token) return
-
-  try {
-    isConnecting.value = true
-    await haSocket.connect(haConfig.value.url, haConfig.value.token)
-    connectErrorText.value = ''
-    haSocket.subscribeToEntities((entities) => {
-      isConnecting.value = false
-      haStore.setEntitiesStates(entities)
-    })
-  }
-  catch (e) {
-    console.error('HA Connection Error:', e)
-    isConnecting.value = false
-    entitiesStates.value = {}
-    connectErrorText.value = t('smartHome.connectFailed')
-  }
-}
-
-async function toggleEntity(entityId: string) {
-  if (!entitiesStates.value[entityId]) return
-
-  if (isConnecting.value) return
-
-  const domain = entityId.split('.')[0]
-  const isOn = isEntityOn(entityId)
-
-  let service = ''
-  if (domain === 'cover') {
-    service = isOn ? 'close_cover' : 'open_cover'
-  }
-  else if (domain === 'climate') {
-    service = isOn ? 'turn_off' : 'turn_on'
-  }
-  else {
-    service = isOn ? 'turn_off' : 'turn_on'
-  }
-
-  loadingStates.value[entityId] = true
-
-  try {
-    await haSocket.callService(domain, service, { entity_id: entityId })
-
-    loadingStates.value[entityId] = false
-  }
-  catch (e) {
-    alert(t('smartHome.actionFailed'))
-    loadingStates.value[entityId] = false
-  }
-}
 
 onUnmounted(() => {
-  haSocket.disconnect()
+  cancelAnimationFrame(animationFrameId)
 })
 
-watch([() => haConfig.value.url, () => haConfig.value.token], () => {
-  initConnection()
-}, { deep: true, immediate: true })
+// --- 星期显示 (中文) ---
+const dayLabel = computed(() => {
+  return new Intl.DateTimeFormat('zh-CN', { weekday: 'short' }).format(now.value)
+})
 </script>
 
 <template>
-  <div class="glass-panel py-[6vh] text-white h-full overflow-y-auto w-full">
-    <div class="flex items-center justify-between w-full mb-[2vh] px-[5vh]">
-      <div class="flex items-baseline space-x-6">
-        <h2 class="text-[4vh] font-bold tracking-widest text-nowrap leading-[5vh]">
-          {{ t('smartHome.title') }}
-        </h2>
-        <div v-if="headerClimateInfo" class="flex items-center space-x-6 opacity-60">
-          <div v-if="headerClimateInfo.temp !== undefined" class="flex items-center space-x-2">
-            <Thermometer class="w-[3vh] h-[3vh] text-orange-400" />
-            <span class="text-[3vh] font-medium tabular-nums">{{ headerClimateInfo.temp }}°</span>
-          </div>
-          <div v-if="headerClimateInfo.humi !== undefined" class="flex items-center space-x-2">
-            <Droplets class="w-[3vh] h-[3vh] text-blue-400" />
-            <span class="text-[3vh] font-medium tabular-nums">{{ headerClimateInfo.humi }}%</span>
-          </div>
-        </div>
-      </div>
-      <div class="flex space-x-4 items-center">
-        <div v-if="connectErrorText" class="flex items-center space-x-2">
-          <AlertTriangle class="w-[4vh] h-[4vh] text-red-400" />
-          <span class="text-red-400 text-[4vh]">{{ connectErrorText }}</span>
-        </div>
-        <button class="p-[1.5vh] bg-white/10 hover:bg-white/20 border border-white/10 rounded-full transition-all" @click="openSettings">
-          <Settings class="w-[3vh] h-[3vh]" />
-        </button>
-      </div>
-    </div>
+  <div
+    class="glass-panel relative h-full flex flex-col items-center justify-center w-full overflow-hidden"
+    @click.stop="showSettingsButton = !showSettingsButton"
+  >
+    <button
+      :class="{ 'opacity-0': !showSettingsButton }"
+      class="absolute top-6 right-6 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 hover:rotate-90 transition-all duration-300"
+      @click="openSettings"
+    >
+      <Settings class="w-6 h-6 text-white" />
+    </button>
 
-    <div v-if="haConfig.url && haConfig.token" id="ha-entities" class="grid w-full px-[4vh]" :class="gridColsClass">
-      <div
-        v-for="entity in haConfig.entities"
-        :key="entity.id"
-        class="ha-card"
-        :class="{ 'on': isEntityOn(entity.id), 'opacity-50 pointer-events-none': isConnecting || loadingStates[entity.id] }"
-        @click="toggleEntity(entity.id)"
+    <div class="analog-clock">
+      <div class="clock-face">
+        
+        <div 
+          v-for="i in 12" 
+          :key="`h-${i}`" 
+          class="mark hour-mark"
+          :style="{ transform: `rotate(${i * 30}deg) translateY(calc(var(--clock-size) / -2 + 15px))` }"
+        ></div>
+        
+        <div 
+          v-for="i in 60" 
+          :key="`m-${i}`" 
+          class="mark minute-mark"
+          :class="{ 'hidden': i % 5 === 0 }"
+          :style="{ transform: `rotate(${i * 6}deg) translateY(calc(var(--clock-size) / -2 + 15px))` }"
+        ></div>
+
+        <div class="clock-number num-12">12</div>
+        <div class="clock-number num-3">3</div>
+        <div class="clock-number num-6">6</div>
+        <div class="clock-number num-9">9</div>
+
+        <div class="day-display">
+          {{ dayLabel }}
+        </div>
+
+        <div class="date-window">
+          {{ now.getDate() }}
+        </div>
+
+      </div>
+
+      <div 
+        class="hand hour-hand shadow-lg"
+        :style="{ transform: `translate(-50%, -100%) rotate(${hourDeg}deg)` }"
+      ></div>
+
+      <div class="hand minute-hand shadow-lg"
+        :style="{ transform: `translate(-50%, -100%) rotate(${minuteDeg}deg)` }"
+      ></div>
+
+      <div class="hand second-hand"
+        :style="{ transform: `translate(-50%, -100%) rotate(${secondDeg}deg)` }"
       >
-        <div class="flex items-center justify-between w-full mb-4">
-          <div
-            class="w-[6vh] h-[6vh] flex items-center justify-center rounded-full transition-colors flex-shrink-0"
-            :class="isEntityOn(entity.id) ? 'bg-white text-black' : 'bg-white/10 text-white'"
-          >
-            <Loader2 v-if="isConnecting || loadingStates[entity.id]" class="w-[3.5vh] h-[3.5vh] animate-spin" />
-            <AlertTriangle v-else-if="!entitiesStates[entity.id]" class="w-[3.5vh] h-[3.5vh] text-orange-400" />
-            <component :is="getIcon(entity.id.split('.')[0], isEntityOn(entity.id))" v-else class="w-[3.5vh] h-[3.5vh]" />
-          </div>
-
-          <!-- 右侧温湿度 (针对空调/climate) -->
-          <div v-if="entity.id.startsWith('climate.') && entitiesStates[entity.id]?.attributes" class="flex flex-wrap justify-end overflow-x-hidden opacity-80">
-            <div v-if="entitiesStates[entity.id].attributes.current_temperature !== undefined" class="flex items-center">
-              <Thermometer class="w-[2.5vh] h-[2.5vh] text-orange-400 mr-[0.8vh]" />
-              <span class="text-[2vh]">{{ entitiesStates[entity.id].attributes.current_temperature }}°</span>
-            </div>
-            <div v-if="entitiesStates[entity.id].attributes.current_humidity !== undefined" class="flex items-center ml-4">
-              <Droplets class="w-[2.5vh] h-[2.5vh] text-blue-400 mr-[0.8vh]" />
-              <span class="text-[2vh]">{{ entitiesStates[entity.id].attributes.current_humidity }}%</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="flex flex-col overflow-hidden w-full">
-          <div class="font-bold text-[2.4vh] truncate w-full">
-            {{ entity.name || (entitiesStates[entity.id] && entitiesStates[entity.id].attributes && entitiesStates[entity.id].attributes.friendly_name) || entity.id }}
-          </div>
-          <div class="text-[2vh] opacity-50 uppercase tracking-widest">
-            <template v-if="entity.id.startsWith('climate.') && isEntityOn(entity.id)">
-              {{ entitiesStates[entity.id]?.attributes?.temperature ? `${entitiesStates[entity.id].attributes.temperature}°C` : t('smartHome.statusOn') }}
-            </template>
-            <template v-else>
-              {{ !entitiesStates[entity.id] ? t('smartHome.notFound') : isEntityOn(entity.id) ? t('smartHome.statusOn') : t('smartHome.statusOff') }}
-            </template>
-          </div>
-        </div>
+        <div class="second-counterweight"></div>
       </div>
-    </div>
 
-    <div v-else class="col-span-full text-center py-20 opacity-50">
-      <p>{{ t('smartHome.setupTip') }}</p>
+      <div class="center-cap shadow-md"></div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.ha-card {
+.glass-panel {
+  max-width: 100vw;
+  margin: 0 auto;
+}
+
+/* --- 核心变量 --- */
+.analog-clock {
+  --clock-size: 90vh; 
+  
+  width: var(--clock-size);
+  height: var(--clock-size);
+  min-width: 300px;
+  min-height: 300px;
+  border-radius: 50%;
+  position: relative;
+  
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 3vh;
-  padding: 3vh;
+  backdrop-filter: blur(10px);
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 
+    0 30px 60px rgba(0, 0, 0, 0.15),
+    inset 0 0 40px rgba(255, 255, 255, 0.05);
+}
+
+.clock-face {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+/* --- 刻度 --- */
+.mark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background-color: rgba(255, 255, 255, 0.8);
+  transform-origin: center center;
+}
+
+.hour-mark {
+  width: 8px;
+  height: 35px;
+  margin-left: -4px; 
+  margin-top: -17.5px;
+  border-radius: 4px;
+}
+
+.minute-mark {
+  width: 3px;
+  height: 15px;
+  margin-left: -1.5px;
+  margin-top: -7.5px;
+  opacity: 0.4;
+}
+
+/* --- 数字 --- */
+.clock-number {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-family: 'SFCompactRounded', 'Huninn', sans-serif;
+  font-size: 11vh;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 12vh;
+  height: 12vh;
+  z-index: 1;
+}
+
+.num-12 { transform: translate(-50%, -50%) translateY(calc(var(--clock-size) / -2 + 80px)); }
+.num-6  { transform: translate(-50%, -50%) translateY(calc(var(--clock-size) / 2 - 80px)); }
+.num-3  { transform: translate(-50%, -50%) translateX(calc(var(--clock-size) / 2 - 80px)); }
+.num-9  { transform: translate(-50%, -50%) translateX(calc(var(--clock-size) / -2 + 80px)); }
+
+/* --- 星期显示 --- */
+.day-display {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) translateY(-15vh);
+  
+  font-family: 'SFCompactRounded', 'Huninn', sans-serif;
+  font-size: 3vh;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 600;
+  z-index: 1;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* --- 日期窗口 --- */
+.date-window {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) translateY(15vh);
+  
+  width: 6vh;
+  height: 6vh;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  background-color: rgba(255, 255, 255, 0.05);
+  
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  font-family: 'SFCompactRounded', 'Huninn', sans-serif;
+  font-size: 2.8vh;
+  font-weight: 700;
+  color: #ff6b6b; 
+  z-index: 1;
+}
+
+/* --- 指针 --- */
+.hand {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: bottom center; 
+  border-radius: 999px 999px 0 0;
+  z-index: 10;
+  /* 关键：使用 transform 修改时，不加 transition，否则会跟不上 RAF 的高频更新，导致抖动 */
+  will-change: transform; 
+}
+
+.hour-hand {
+  width: 16px;
+  height: 28%;
+  margin-left: -8px;
+  background-color: rgba(255, 255, 255, 0.9);
+  z-index: 2;
+}
+
+.minute-hand {
+  width: 8px;
+  height: 40%;
+  margin-left: -4px;
+  background-color: rgba(255, 255, 255, 0.8);
+  z-index: 3;
+}
+
+.second-hand {
+  width: 3px;
+  height: 44%;
+  margin-left: -1.5px;
+  background-color: #ff6b6b;
+  z-index: 4;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  position: relative;
-  margin: 1.5vh;
+  justify-content: flex-end;
 }
 
-.ha-card.on {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(255, 255, 255, 0.3);
+.second-counterweight {
+  width: 8px;
+  height: 30px;
+  background-color: #ff6b6b;
+  border-radius: 999px;
+  position: absolute;
+  bottom: -25px; 
+  left: -2.5px;
 }
 
-.ha-card:active {
-  transform: scale(0.95);
+/* 中心帽 */
+.center-cap {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  margin-top: -11px;
+  background: linear-gradient(135deg, #ffffff, #d4d4d4);
+  border: 3px solid #ff6b6b;
+  border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.8);
+  z-index: 20;
 }
 
-.glass-panel {
-  max-width: 1200px;
+/* --- 移动端适配 --- */
+@media (max-width: 768px) {
+  .analog-clock {
+    --clock-size: 90vw;
+  }
+  
+  .clock-number {
+    font-size: 11vw;
+    width: 12vw;
+    height: 12vw;
+  }
+
+  .num-12 { transform: translate(-50%, -50%) translateY(calc(var(--clock-size) / -2 + 16vw)); }
+  .num-6  { transform: translate(-50%, -50%) translateY(calc(var(--clock-size) / 2 - 16vw)); }
+  .num-3  { transform: translate(-50%, -50%) translateX(calc(var(--clock-size) / 2 - 16vw)); }
+  .num-9  { transform: translate(-50%, -50%) translateX(calc(var(--clock-size) / -2 + 16vw)); }
+
+  /* 移动端调整 */
+  .day-display { 
+    transform: translate(-50%, -50%) translateY(-15vw); 
+    font-size: 3.5vw;
+  }
+  .date-window { 
+    transform: translate(-50%, -50%) translateY(15vw);
+    width: 7vw; height: 7vw; font-size: 3.2vw;
+  }
 }
 </style>
