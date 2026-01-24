@@ -28,18 +28,30 @@ defineExpose({ save, reset })
       <h4 class="text-white/60 mb-4 uppercase tracking-widest text-sm font-medium">
         {{ t('clockSettings.color') }}
       </h4>
-      <div class="grid grid-cols-7">
+      <div class="grid grid-cols-7 gap-y-4">
         <button
           v-for="color in presetColors" :key="color"
           class="w-10 h-10 rounded-full border-4 transition-all hover:scale-110 active:scale-90"
           :style="{ backgroundColor: color, borderColor: clockDraft.color === color ? 'white' : 'transparent' }"
           @click="clockDraft.color = color"
         />
+
+        <button
+          class="w-10 h-10 rounded-full border-4 transition-all hover:scale-110 active:scale-90 relative overflow-hidden"
+          :style="{ 
+            background: 'linear-gradient(135deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3)',
+            borderColor: clockDraft.color === 'random' ? 'white' : 'transparent'
+          }"
+          title="Random Rainbow Color"
+          @click="clockDraft.color = 'random'"
+        >
+        </button>
+
         <div
           class="w-10 h-10 rounded-full border-2 transition-all overflow-hidden relative"
           :style="{
             background: 'linear-gradient(135deg, #07aeea 0%, #2bf598 100%)',
-            borderColor: presetColors.includes(clockDraft.color) ? 'transparent' : 'white',
+            borderColor: (presetColors.includes(clockDraft.color) || clockDraft.color === 'random') ? 'transparent' : 'white',
           }"
         >
           <input v-model="clockDraft.color" type="color" class="absolute inset-0 opacity-0 cursor-pointer">

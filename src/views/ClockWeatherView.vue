@@ -49,6 +49,47 @@ const { idle } = useIdle(5 * 1000)
 watch(idle, (newIdle) => {
   showSettingsButton.value = !newIdle
 })
+
+/** * --- 新增逻辑：随机颜色功能 --- 
+ * 设定：当 clockConfig.color 为 'random' 时触发
+ */
+const isRainbowMode = computed(() => clockConfig.value.color === 'random')
+
+// 存储 H1, H2, 冒号, M1, M2 的颜色
+const digitColors = ref<string[]>(['', '', '', '', ''])
+
+// 生成鲜艳的随机颜色 (HSL)
+function generateBrightColor() {
+  const hue = Math.floor(Math.random() * 360)
+  // 饱和度 70%-90%，亮度 60%-70%，确保在深色背景下清晰可见
+  return `hsl(${hue}, 80%, 65%)`
+}
+
+function updateColors() {
+  digitColors.value = [
+    generateBrightColor(),
+    generateBrightColor(),
+    generateBrightColor(),
+    generateBrightColor(),
+    generateBrightColor()
+  ]
+}
+
+// 计算当前的 "10分钟区块" (例如 10:00-10:09 是一个区块)
+const tenMinuteBlock = computed(() => Math.floor(now.value.getTime() / (5 * 1000)))
+
+// 当处于随机模式，且进入新的10分钟区块时，更新颜色
+watch([tenMinuteBlock, isRainbowMode], ([block, mode]) => {
+  if (mode) {
+    updateColors()
+  }
+}, { immediate: true })
+
+/** 获取指定位置的颜色，如果不是随机模式则返回 undefined (使用默认配置颜色) */
+function getColor(index: number) {
+  return isRainbowMode.value ? digitColors.value[index] : undefined
+}
+
 </script>
 
 <template>
@@ -97,6 +138,7 @@ watch(idle, (newIdle) => {
         :delay="(5 - baseDelay) * 100"
         :narrow-gap="true" 
         class="opacity-95"
+        :style="{ color: getColor(0) }" 
       />
       
       <Digit
@@ -108,9 +150,13 @@ watch(idle, (newIdle) => {
         :class="[{
           brightness: clockConfig.is24Hour || (!clockConfig.is24Hour && h1 !== 0),
         }]"
+        :style="{ color: getColor(1) }"
       />
 
-      <div class="clock-separator animate-blink">
+      <div 
+        class="clock-separator animate-blink"
+        :style="{ color: getColor(2) }"
+      >
         :
       </div>
 
@@ -120,6 +166,7 @@ watch(idle, (newIdle) => {
         :delay="(3 - baseDelay) * 100"
         :narrow-gap="true"
         class="opacity-95"
+        :style="{ color: getColor(3) }"
       />
       
       <Digit
@@ -128,6 +175,7 @@ watch(idle, (newIdle) => {
         :delay="(2 - baseDelay) * 100"
         :narrow-gap="true"
         class="opacity-95 brightness"
+        :style="{ color: getColor(4) }"
       />
     </div>
 
@@ -136,6 +184,8 @@ watch(idle, (newIdle) => {
 </template>
 
 <style scoped>
+/* 完全保留您上一次满意的样式配置 
+*/
 .glass-panel {
   max-width: 180vh;
   margin: 0 auto;
