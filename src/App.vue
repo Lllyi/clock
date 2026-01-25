@@ -12,14 +12,14 @@ import { isIpadIOS15OrLower } from './utils/device'
 import CalendarView from './views/CalendarView.vue'
 import ClockWeatherView from './views/ClockWeatherView.vue'
 import SmartHomeView from './views/SmartHomeView.vue'
-// [新增] 引入新页面组件
+// 引入新页面
 import HomeView2 from './views/HomeView2.vue'
 import ThingLikeClock from './views/ThingLikeClock.vue'
 
 const configStore = useConfigStore()
 const { showDrawer, layoutConfig } = storeToRefs(configStore)
 
-// [修改] 初始页改为 3，以保持默认显示 ClockWeatherView (0,1是新页面, 2是SmartHome, 3是Clock)
+// 初始页为 3 (ClockWeatherView)
 const currentPage = ref(3)
 const calendarRef = ref<any>(null)
 
@@ -57,7 +57,7 @@ let startX = 0
 function goToPage(page: number) {
   currentPage.value = page
 
-  // [修改] 切换到日历看板 (现在是第 4 页) 时更新当前日期
+  // 切换到日历看板 (Index 4) 时更新当前日期
   if (page === 4 && calendarRef.value) {
     calendarRef.value.refreshToday()
   }
@@ -76,7 +76,6 @@ function handleTouchEnd(e: TouchEvent) {
       isSwiping.value = false
     }, 50)
 
-    // [修改] 最大页码限制改为 4 (总共5页：0,1,2,3,4)
     if (diff > 0 && currentPage.value < 4)
       goToPage(currentPage.value + 1)
     else if (diff < 0 && currentPage.value > 0)
@@ -96,7 +95,6 @@ function handleMouseUp(e: MouseEvent) {
       isSwiping.value = false
     }, 50)
 
-    // [修改] 最大页码限制改为 4
     if (diff > 0 && currentPage.value < 4)
       goToPage(currentPage.value + 1)
     else if (diff < 0 && currentPage.value > 0)
@@ -119,7 +117,6 @@ watchEffect(() => {
   if (left.value && currentPage.value > 0) {
     goToPage(currentPage.value - 1)
   }
-  // [修改] 最大页码限制改为 4
   if (right.value && currentPage.value < 4) {
     goToPage(currentPage.value + 1)
   }
@@ -147,8 +144,8 @@ watch(language, (nextLocale) => {
     </template>
 
     <div
-      class="main-slider flex h-full transition-transform duration-700 cubic-bezier"
-      :style="{ transform: `translateX(-${currentPage * 100}vw)`, width: '500vw' }"
+      class="main-slider flex h-full transition-all duration-700 cubic-bezier"
+      :style="{ marginLeft: `-${currentPage * 100}vw`, width: '500vw' }"
     >
       <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
         <HomeView2 v-if="currentPage === 0" />
@@ -182,5 +179,7 @@ watch(language, (nextLocale) => {
 <style scoped>
 .cubic-bezier {
   transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  /* 显式指定过渡属性为 margin-left，性能更好 */
+  transition-property: margin-left;
 }
 </style>
