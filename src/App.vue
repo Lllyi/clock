@@ -24,7 +24,6 @@ const currentPage = ref(3)
 const calendarRef = ref<any>(null)
 
 const weatherStore = useWeatherStore()
-// [修复 1] 在这里加上 showWeatherDetail
 const { 
   weatherData, 
   showRainEffect, 
@@ -39,6 +38,17 @@ const isSwiping = ref(false)
 const shouldShowWeatherEffects = computed(() => {
   return false
 })
+
+// --- [新增] 睡眠模式检测 (省电逻辑) ---
+const isSleepMode = ref(false)
+let sleepCheckTimer: number | null = null
+
+function checkSleepMode() {
+  const hour = new Date().getHours()
+  // 设定：晚上 21 点到次日早上 6 点为睡眠模式
+  // 逻辑：大于等于21点 (21, 22, 23) 或者 小于6点 (0, 1, 2, 3, 4, 5)
+  isSleepMode.value = hour >= 21 || hour < 6
+}
 
 // --- 每日凌晨 3:00 自动刷新逻辑 ---
 let refreshTimer: number | null = null
@@ -65,11 +75,18 @@ function scheduleDailyRefresh() {
 }
 
 onMounted(() => {
+  // 1. 启动每日自动刷新
   scheduleDailyRefresh()
+  
+  // 2. [新增] 启动睡眠模式检测
+  checkSleepMode() // 立即检查一次
+  sleepCheckTimer = window.setInterval(checkSleepMode, 60 * 1000) // 每分钟检查一次
 })
 
 onUnmounted(() => {
   if (refreshTimer) clearTimeout(refreshTimer)
+  // [新增] 清除睡眠检测定时器
+  if (sleepCheckTimer) clearInterval(sleepCheckTimer)
 })
 // ----------------------------------------
 
@@ -181,6 +198,12 @@ watch(language, (nextLocale) => {
     <NewYearEgg />
 
     <WeatherEffects v-if="shouldShowWeatherEffects" />
+
+    <div 
+      v-if="isSleepMode" 
+      class="fixed inset-0 z-[9999] bg-black pointer-events-none transition-opacity duration-1000"
+      style="opacity: 0.85;"
+    ></div>
   </div>
 </template>
 

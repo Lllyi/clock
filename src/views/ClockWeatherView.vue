@@ -84,7 +84,26 @@ function getColor(index: number) {
 const dotStyle = ref({ top: '0px', left: '50%' })
 let animationFrameId: number
 
+// [新增] 判断是否为睡眠时间 (晚上21点 - 次日6点)
+function isSleepTime() {
+  const h = new Date().getHours()
+  // 大于等于21点 或 小于6点
+  return h >= 21 || h < 6
+}
+
 const updateDotPosition = () => {
+  // [新增] 省电模式逻辑
+  if (isSleepTime()) {
+    // 睡眠时间：隐藏红点 (设置 opacity 为 0)
+    // 这里使用扩展运算符保留原有位置，只修改透明度
+    dotStyle.value = { ...dotStyle.value, opacity: 0 } as any
+    
+    // 降低检查频率：每秒检查一次时间，不再进行 60FPS 渲染
+    setTimeout(updateDotPosition, 1000)
+    return
+  }
+
+  // 正常模式：进行坐标计算
   const date = new Date()
   const s = date.getSeconds()
   const ms = date.getMilliseconds()
@@ -133,6 +152,7 @@ const updateDotPosition = () => {
     style = { top: offset, left: `${progress}%` }
   }
 
+  // 应用样式 (这会自动恢复 opacity 为 1，因为 style 对象里没有 opacity: 0)
   dotStyle.value = style as any
   animationFrameId = requestAnimationFrame(updateDotPosition)
 }
@@ -194,7 +214,7 @@ onUnmounted(() => {
       <Digit
         v-if="clockConfig.is24Hour || h1 !== 0"
         :value="h1" :enable-tilt="clockConfig.enableTilt"
-        :trigger="Math.floor(now.getTime() / 5000)"
+        :trigger="Math.floor(now.getTime() / 10000)"
         :delay="(5 - baseDelay) * 100"
         :narrow-gap="true" 
         class="opacity-95"
@@ -203,7 +223,7 @@ onUnmounted(() => {
       
       <Digit
         :value="h2" :enable-tilt="clockConfig.enableTilt"
-        :trigger="Math.floor(now.getTime() / 5000)"
+        :trigger="Math.floor(now.getTime() / 10000)"
         :delay="(4 - baseDelay) * 100"
         :narrow-gap="true"
         class="opacity-95"
@@ -222,7 +242,7 @@ onUnmounted(() => {
 
       <Digit
         :value="m1" :enable-tilt="clockConfig.enableTilt"
-        :trigger="Math.floor(now.getTime() / 5000)"
+        :trigger="Math.floor(now.getTime() / 10000)"
         :delay="(3 - baseDelay) * 100"
         :narrow-gap="true"
         class="opacity-95"
@@ -231,7 +251,7 @@ onUnmounted(() => {
       
       <Digit
         :value="m2" :enable-tilt="clockConfig.enableTilt"
-        :trigger="Math.floor(now.getTime() / 5000)"
+        :trigger="Math.floor(now.getTime() / 10000)"
         :delay="(2 - baseDelay) * 100"
         :narrow-gap="true"
         class="opacity-95 brightness"
