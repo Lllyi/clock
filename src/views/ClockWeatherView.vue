@@ -88,7 +88,7 @@ let animationFrameId: number
 function isSleepTime() {
   const h = new Date().getHours()
   // 大于等于21点 或 小于6点
-  return h >= 21 || h < 6
+  return h >= 23 || h < 6
 }
 
 const updateDotPosition = () => {

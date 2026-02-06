@@ -47,7 +47,7 @@ function checkSleepMode() {
   const hour = new Date().getHours()
   // 设定：晚上 21 点到次日早上 6 点为睡眠模式
   // 逻辑：大于等于21点 (21, 22, 23) 或者 小于6点 (0, 1, 2, 3, 4, 5)
-  isSleepMode.value = hour >= 21 || hour < 6
+  isSleepMode.value = hour >= 23 || hour < 6
 }
 
 // --- 每日凌晨 3:00 自动刷新逻辑 ---
