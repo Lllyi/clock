@@ -9,13 +9,14 @@ import { i18n } from '../i18n'
 import { mapWmoCode } from '../utils/weather'
 import { useConfigStore } from './config'
 
+// 确保导出了 LocationMode 类型，Settings 组件需要用到
 export type LocationMode = 'auto' | 'coords' | 'city'
 
 export const useWeatherStore = defineStore('weather', () => {
   const configStore = useConfigStore()
   const { language } = storeToRefs(configStore)
 
-  // --- Persistent State ---
+  // --- Persistent State (持久化状态) ---
   const locationMode = ref<LocationMode>('auto')
   const customLat = ref(39.9)
   const customLon = ref(116.4)
@@ -25,13 +26,22 @@ export const useWeatherStore = defineStore('weather', () => {
   const showThunderEffect = ref(true)
   const showSnowEffect = ref(true)
 
-  // --- Runtime State ---
+  // --- Runtime State (运行时状态) ---
+  // [新增] 控制天气详情弹窗显示
+  const showWeatherDetail = ref(false)
+  
+  // [新增] 室内温湿度 (蓝牙功能)
+  const indoorTemp = ref<number | null>(null)
+  const indoorHum = ref<number | null>(null)
+
   const weatherData = ref<any>(null)
   const airQualityData = ref<any>(null)
   const loading = ref(false)
   const locationText = ref(i18n.global.t('weather.status.locating'))
   const weatherInfo = ref<WeatherInfo>({ text: i18n.global.t('weather.status.loading'), icon: mapWmoCode(-1).icon })
   const cachedCoords = ref<{ lat: number, lon: number, city: string } | null>(null)
+
+  // --- Actions ---
 
   async function fetchWeather(lat: number, lon: number) {
     try {
@@ -237,12 +247,19 @@ export const useWeatherStore = defineStore('weather', () => {
     showRainEffect,
     showThunderEffect,
     showSnowEffect,
+    
     // Runtime
     weatherData,
     loading,
     locationText,
     weatherInfo,
     airQualityData,
+    
+    // [新增] 必须导出，否则 App.vue 和 ClockWeatherView.vue 会报错
+    showWeatherDetail,
+    indoorTemp,
+    indoorHum,
+
     // Actions
     updateWeather,
     searchCities,

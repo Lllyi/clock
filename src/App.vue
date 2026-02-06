@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { useIdle, useMagicKeys } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import { computed, ref, watch, watchEffect } from 'vue'
+import { computed, ref, watch, watchEffect, onMounted, onUnmounted } from 'vue'
 import NewYearEgg from './components/NewYearEgg.vue'
 import SettingsDrawer from './components/SettingsDrawer.vue'
 import WeatherEffects from './components/WeatherEffects.vue'
+// 引入天气弹窗组件
+import WeatherForecastModal from './components/WeatherForecastModal.vue'
 import { i18n } from './i18n'
 import { useConfigStore } from './stores/config'
 import { useWeatherStore } from './stores/weather'
@@ -12,52 +14,69 @@ import { isIpadIOS15OrLower } from './utils/device'
 import CalendarView from './views/CalendarView.vue'
 import ClockWeatherView from './views/ClockWeatherView.vue'
 import SmartHomeView from './views/SmartHomeView.vue'
-// 引入新页面
 import HomeView2 from './views/HomeView2.vue'
 import ThingLikeClock from './views/ThingLikeClock.vue'
 
 const configStore = useConfigStore()
 const { showDrawer, layoutConfig } = storeToRefs(configStore)
 
-// 初始页为 3 (ClockWeatherView)
 const currentPage = ref(3)
 const calendarRef = ref<any>(null)
 
 const weatherStore = useWeatherStore()
-const { weatherData, showRainEffect, showThunderEffect, showSnowEffect } = storeToRefs(weatherStore)
+// [修复 1] 在这里加上 showWeatherDetail
+const { 
+  weatherData, 
+  showRainEffect, 
+  showThunderEffect, 
+  showSnowEffect, 
+  showWeatherDetail 
+} = storeToRefs(weatherStore)
 
 const isSwiping = ref(false)
 
-// 判断是否需要渲染天气特效组件
+// 强制关闭天气特效
 const shouldShowWeatherEffects = computed(() => {
-  if (!weatherData.value || layoutConfig.value.clockOnlyMode) return false
-
-  const code = weatherData.value.current?.weather_code ?? -1
-
-  if (showRainEffect.value) {
-    const isRaining = (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || (code >= 95 && code <= 99)
-    if (isRaining) return true
-  }
-
-  if (showSnowEffect.value) {
-    const isSnowing = (code >= 71 && code <= 77) || (code === 85 || code === 86)
-    if (isSnowing) return true
-  }
-
-  if (showThunderEffect.value) {
-    const isThundering = code === 95 || code === 96 || code === 99
-    if (isThundering) return true
-  }
-
   return false
 })
+
+// --- 每日凌晨 3:00 自动刷新逻辑 ---
+let refreshTimer: number | null = null
+
+function scheduleDailyRefresh() {
+  const now = new Date()
+  let targetTime = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(), 
+    3, 0, 0 
+  )
+  // 如果今天3点已过，设为明天3点
+  if (targetTime.getTime() < now.getTime()) {
+    targetTime.setDate(targetTime.getDate() + 1)
+  }
+
+  const msToTarget = targetTime.getTime() - now.getTime()
+  console.log(`[System] 下次自动刷新将在 ${Math.round(msToTarget / 1000 / 60)} 分钟后执行`)
+
+  refreshTimer = window.setTimeout(() => {
+    window.location.reload()
+  }, msToTarget)
+}
+
+onMounted(() => {
+  scheduleDailyRefresh()
+})
+
+onUnmounted(() => {
+  if (refreshTimer) clearTimeout(refreshTimer)
+})
+// ----------------------------------------
 
 let startX = 0
 
 function goToPage(page: number) {
   currentPage.value = page
-
-  // 切换到日历看板 (Index 4) 时更新当前日期
   if (page === 4 && calendarRef.value) {
     calendarRef.value.refreshToday()
   }
@@ -72,14 +91,9 @@ function handleTouchEnd(e: TouchEvent) {
   const diff = startX - endX
   if (Math.abs(diff) > 50) {
     isSwiping.value = true
-    setTimeout(() => {
-      isSwiping.value = false
-    }, 50)
-
-    if (diff > 0 && currentPage.value < 4)
-      goToPage(currentPage.value + 1)
-    else if (diff < 0 && currentPage.value > 0)
-      goToPage(currentPage.value - 1)
+    setTimeout(() => { isSwiping.value = false }, 50)
+    if (diff > 0 && currentPage.value < 4) goToPage(currentPage.value + 1)
+    else if (diff < 0 && currentPage.value > 0) goToPage(currentPage.value - 1)
   }
 }
 
@@ -91,14 +105,9 @@ function handleMouseUp(e: MouseEvent) {
   const diff = startX - e.clientX
   if (Math.abs(diff) > 50) {
     isSwiping.value = true
-    setTimeout(() => {
-      isSwiping.value = false
-    }, 50)
-
-    if (diff > 0 && currentPage.value < 4)
-      goToPage(currentPage.value + 1)
-    else if (diff < 0 && currentPage.value > 0)
-      goToPage(currentPage.value - 1)
+    setTimeout(() => { isSwiping.value = false }, 50)
+    if (diff > 0 && currentPage.value < 4) goToPage(currentPage.value + 1)
+    else if (diff < 0 && currentPage.value > 0) goToPage(currentPage.value - 1)
   }
 }
 
@@ -109,17 +118,11 @@ function handleGlobalClick(e: MouseEvent) {
   }
 }
 
-/** 键盘左右键切换页面 */
 const { left, right } = useMagicKeys()
 watchEffect(() => {
   if (showDrawer.value) return
-
-  if (left.value && currentPage.value > 0) {
-    goToPage(currentPage.value - 1)
-  }
-  if (right.value && currentPage.value < 4) {
-    goToPage(currentPage.value + 1)
-  }
+  if (left.value && currentPage.value > 0) goToPage(currentPage.value - 1)
+  if (right.value && currentPage.value < 4) goToPage(currentPage.value + 1)
 })
 
 const { language } = storeToRefs(configStore)
@@ -169,6 +172,11 @@ watch(language, (nextLocale) => {
     </div>
 
     <SettingsDrawer />
+    
+    <WeatherForecastModal 
+      :show="showWeatherDetail" 
+      @close="showWeatherDetail = false" 
+    />
 
     <NewYearEgg />
 
@@ -179,7 +187,6 @@ watch(language, (nextLocale) => {
 <style scoped>
 .cubic-bezier {
   transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
-  /* 显式指定过渡属性为 margin-left，性能更好 */
   transition-property: margin-left;
 }
 </style>
