@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useIdle } from '@vueuse/core'
-import { Settings } from 'lucide-vue-next'
+import { Settings, RefreshCw } from 'lucide-vue-next' // [修改] 引入 RefreshCw 图标
 import { storeToRefs } from 'pinia'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -20,6 +20,11 @@ const { h1, h2, m1, m2, s1, s2, lunar, now } = useTime({
 function openSettings() {
   activeTab.value = 'general'
   showDrawer.value = true
+}
+
+// [新增] 刷新页面函数
+function reloadPage() {
+  window.location.reload()
 }
 
 const weekdayLabel = computed(() => {
@@ -84,26 +89,25 @@ function getColor(index: number) {
 const dotStyle = ref({ top: '0px', left: '50%' })
 let animationFrameId: number
 
-// [新增] 判断是否为睡眠时间 (晚上21点 - 次日6点)
+// [省电模式] 判断是否为睡眠时间 (晚上21点 - 次日6点)
 function isSleepTime() {
   const h = new Date().getHours()
   // 大于等于21点 或 小于6点
-  return h >= 23 || h < 6
+  return h >= 21 || h < 6
 }
 
 const updateDotPosition = () => {
-  // [新增] 省电模式逻辑
+  // [省电模式逻辑]
   if (isSleepTime()) {
     // 睡眠时间：隐藏红点 (设置 opacity 为 0)
-    // 这里使用扩展运算符保留原有位置，只修改透明度
     dotStyle.value = { ...dotStyle.value, opacity: 0 } as any
     
-    // 降低检查频率：每秒检查一次时间，不再进行 60FPS 渲染
+    // 降低检查频率：每秒检查一次时间
     setTimeout(updateDotPosition, 1000)
     return
   }
 
-  // 正常模式：进行坐标计算
+  // 正常模式
   const date = new Date()
   const s = date.getSeconds()
   const ms = date.getMilliseconds()
@@ -115,44 +119,27 @@ const updateDotPosition = () => {
 
   let style = {}
   
-  // 逻辑修正：以12点(Top Center)为起点
-  // 矩形周长逻辑分为5段：
-  
   if (currentSec < 7.5) {
-    // 阶段1: 12点 -> 1点半 (Top Edge: Center -> Right)
-    // 范围: Left 50% -> 100%
     const progress = (currentSec / 7.5) * 50 + 50
     style = { top: offset, left: `${progress}%` }
   } 
   else if (currentSec < 22.5) {
-    // 阶段2: 1点半 -> 4点半 (Right Edge: Top -> Bottom)
-    // 范围: Top 0% -> 100%
-    // 经过3点钟方向(15s)时，正好在 Right Edge Center
     const progress = ((currentSec - 7.5) / 15) * 100
     style = { top: `${progress}%`, left: `calc(100% + ${offset})` }
   } 
   else if (currentSec < 37.5) {
-    // 阶段3: 4点半 -> 7点半 (Bottom Edge: Right -> Left)
-    // 范围: Left 100% -> 0%
-    // 经过6点钟方向(30s)时，正好在 Bottom Edge Center
     const progress = 100 - ((currentSec - 22.5) / 15) * 100
     style = { top: `calc(100% + ${offset})`, left: `${progress}%` }
   } 
   else if (currentSec < 52.5) {
-    // 阶段4: 7点半 -> 10点半 (Left Edge: Bottom -> Top)
-    // 范围: Top 100% -> 0%
-    // 经过9点钟方向(45s)时，正好在 Left Edge Center
     const progress = 100 - ((currentSec - 37.5) / 15) * 100
     style = { top: `${progress}%`, left: offset }
   } 
   else {
-    // 阶段5: 10点半 -> 12点 (Top Edge: Left -> Center)
-    // 范围: Left 0% -> 50%
     const progress = ((currentSec - 52.5) / 7.5) * 50
     style = { top: offset, left: `${progress}%` }
   }
 
-  // 应用样式 (这会自动恢复 opacity 为 1，因为 style 对象里没有 opacity: 0)
   dotStyle.value = style as any
   animationFrameId = requestAnimationFrame(updateDotPosition)
 }
@@ -175,9 +162,17 @@ onUnmounted(() => {
   >
     <button
       :class="{ 'opacity-0': !showSettingsButton }"
-      class="absolute top-6 right-6 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 hover:rotate-90" @click="openSettings"
+      class="absolute top-6 right-6 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 hover:rotate-90 transition-opacity" @click="openSettings"
     >
       <Settings class="w-6 h-6 text-white" />
+    </button>
+
+    <button
+      :class="{ 'opacity-0': !showSettingsButton }"
+      class="absolute top-6 left-6 z-10 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-opacity"
+      @click="reloadPage"
+    >
+      <RefreshCw class="w-6 h-6 text-white" />
     </button>
 
     <div v-if="!layoutConfig.clockOnlyMode" class="flex flex-col sm:flex-row items-center md:items-start w-full justify-center">
@@ -214,7 +209,7 @@ onUnmounted(() => {
       <Digit
         v-if="clockConfig.is24Hour || h1 !== 0"
         :value="h1" :enable-tilt="clockConfig.enableTilt"
-        :trigger="Math.floor(now.getTime() / 10000)"
+        :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(5 - baseDelay) * 100"
         :narrow-gap="true" 
         class="opacity-95"
@@ -223,7 +218,7 @@ onUnmounted(() => {
       
       <Digit
         :value="h2" :enable-tilt="clockConfig.enableTilt"
-        :trigger="Math.floor(now.getTime() / 10000)"
+        :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(4 - baseDelay) * 100"
         :narrow-gap="true"
         class="opacity-95"
@@ -242,7 +237,7 @@ onUnmounted(() => {
 
       <Digit
         :value="m1" :enable-tilt="clockConfig.enableTilt"
-        :trigger="Math.floor(now.getTime() / 10000)"
+        :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(3 - baseDelay) * 100"
         :narrow-gap="true"
         class="opacity-95"
@@ -251,7 +246,7 @@ onUnmounted(() => {
       
       <Digit
         :value="m2" :enable-tilt="clockConfig.enableTilt"
-        :trigger="Math.floor(now.getTime() / 10000)"
+        :trigger="Math.floor(now.getTime() / 5000)"
         :delay="(2 - baseDelay) * 100"
         :narrow-gap="true"
         class="opacity-95 brightness"

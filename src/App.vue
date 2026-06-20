@@ -13,14 +13,11 @@ import { useWeatherStore } from './stores/weather'
 import { isIpadIOS15OrLower } from './utils/device'
 import CalendarView from './views/CalendarView.vue'
 import ClockWeatherView from './views/ClockWeatherView.vue'
-import SmartHomeView from './views/SmartHomeView.vue'
-import HomeView2 from './views/HomeView2.vue'
-import ThingLikeClock from './views/ThingLikeClock.vue'
 
 const configStore = useConfigStore()
 const { showDrawer, layoutConfig } = storeToRefs(configStore)
 
-const currentPage = ref(3)
+const currentPage = ref(0)
 const calendarRef = ref<any>(null)
 
 const weatherStore = useWeatherStore()
@@ -76,7 +73,7 @@ function scheduleDailyRefresh() {
 
 onMounted(() => {
   // 1. 启动每日自动刷新
-  scheduleDailyRefresh()
+  //scheduleDailyRefresh()
   
   // 2. [新增] 启动睡眠模式检测
   checkSleepMode() // 立即检查一次
@@ -90,11 +87,14 @@ onUnmounted(() => {
 })
 // ----------------------------------------
 
+const TOTAL_PAGES = 2
+
 let startX = 0
 
 function goToPage(page: number) {
+  if (page < 0 || page >= TOTAL_PAGES) return
   currentPage.value = page
-  if (page === 4 && calendarRef.value) {
+  if (page === 1 && calendarRef.value) {
     calendarRef.value.refreshToday()
   }
 }
@@ -109,7 +109,7 @@ function handleTouchEnd(e: TouchEvent) {
   if (Math.abs(diff) > 50) {
     isSwiping.value = true
     setTimeout(() => { isSwiping.value = false }, 50)
-    if (diff > 0 && currentPage.value < 4) goToPage(currentPage.value + 1)
+    if (diff > 0 && currentPage.value < TOTAL_PAGES - 1) goToPage(currentPage.value + 1)
     else if (diff < 0 && currentPage.value > 0) goToPage(currentPage.value - 1)
   }
 }
@@ -123,7 +123,7 @@ function handleMouseUp(e: MouseEvent) {
   if (Math.abs(diff) > 50) {
     isSwiping.value = true
     setTimeout(() => { isSwiping.value = false }, 50)
-    if (diff > 0 && currentPage.value < 4) goToPage(currentPage.value + 1)
+    if (diff > 0 && currentPage.value < TOTAL_PAGES - 1) goToPage(currentPage.value + 1)
     else if (diff < 0 && currentPage.value > 0) goToPage(currentPage.value - 1)
   }
 }
@@ -139,7 +139,7 @@ const { left, right } = useMagicKeys()
 watchEffect(() => {
   if (showDrawer.value) return
   if (left.value && currentPage.value > 0) goToPage(currentPage.value - 1)
-  if (right.value && currentPage.value < 4) goToPage(currentPage.value + 1)
+  if (right.value && currentPage.value < TOTAL_PAGES - 1) goToPage(currentPage.value + 1)
 })
 
 const { language } = storeToRefs(configStore)
@@ -165,26 +165,14 @@ watch(language, (nextLocale) => {
 
     <div
       class="main-slider flex h-full transition-all duration-700 cubic-bezier"
-      :style="{ marginLeft: `-${currentPage * 100}vw`, width: '500vw' }"
+      :style="{ marginLeft: `-${currentPage * 100}vw`, width: `${TOTAL_PAGES * 100}vw` }"
     >
-      <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
-        <HomeView2 v-if="currentPage === 0" />
-      </div>
-
-      <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
-        <ThingLikeClock v-if="currentPage === 1" />
-      </div>
-
-      <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
-        <SmartHomeView v-if="currentPage === 2" />
-      </div>
-
       <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
         <ClockWeatherView />
       </div>
 
       <div class="slide-page w-screen h-screen flex items-center justify-center flex-shrink-0">
-        <CalendarView v-if="currentPage === 4" ref="calendarRef" />
+        <CalendarView v-if="currentPage === 1" ref="calendarRef" />
       </div>
     </div>
 
